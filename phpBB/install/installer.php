@@ -13,6 +13,8 @@
 
 namespace phpbb\install;
 
+use phpbb\install\helper\iohandler\iohandler_interface;
+
 class installer
 {
 	/**
@@ -31,7 +33,7 @@ class installer
 	protected $installer_modules;
 
 	/**
-	 * @var \phpbb\install\helper\iohandler\iohandler_interface
+	 * @var iohandler_interface
 	 */
 	protected $iohandler;
 
@@ -66,9 +68,9 @@ class installer
 	/**
 	 * Sets input-output handler objects
 	 *
-	 * @param helper\iohandler\iohandler_interface	$iohandler
+	 * @param iohandler_interface	$iohandler
 	 */
-	public function set_iohandler(\phpbb\install\helper\iohandler\iohandler_interface $iohandler)
+	public function set_iohandler(iohandler_interface $iohandler)
 	{
 		$this->iohandler = $iohandler;
 	}
@@ -137,7 +139,8 @@ class installer
 			if ($install_finished)
 			{
 				// Send install finished message
-				$this->iohandler->set_progress('INSTALLER_FINISHED', $this->install_config->get_task_progress_count());
+				$this->iohandler->finish_progress('INSTALLER_FINISHED');
+				$this->iohandler->add_success_message('INSTALLER_FINISHED');
 			}
 			else
 			{
