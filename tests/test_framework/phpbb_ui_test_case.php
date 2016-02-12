@@ -26,6 +26,7 @@ class phpbb_ui_test_case extends phpbb_test_case
 	static protected $config;
 	static protected $root_url;
 	static protected $already_installed = false;
+	static protected $db;
 
 	static public function setUpBeforeClass()
 	{
@@ -74,6 +75,18 @@ class phpbb_ui_test_case extends phpbb_test_case
 		}
 	}
 
+	protected function tearDown()
+	{
+		parent::tearDown();
+
+		if (self::$db instanceof \phpbb\db\driver\driver_interface)
+		{
+			// Close the database connections again this test
+			self::$db->sql_close();
+		}
+	}
+
+
 	static public function visit($path)
 	{
 		self::$webDriver->get(self::$root_url . $path);
@@ -98,9 +111,11 @@ class phpbb_ui_test_case extends phpbb_test_case
 
 	static public function install_board()
 	{
-		global $phpbb_root_path, $phpEx;
+		global $phpbb_root_path, $phpEx, $db;
 
 		self::recreate_database(self::$config);
+
+		$db = self::get_db();
 
 		$config_file = $phpbb_root_path . "config.$phpEx";
 		$config_file_dev = $phpbb_root_path . "config_dev.$phpEx";
@@ -206,5 +221,20 @@ class phpbb_ui_test_case extends phpbb_test_case
 		global $phpbb_container, $cache, $phpbb_dispatcher, $request, $user, $auth, $db, $config, $phpbb_log, $symfony_request, $phpbb_filesystem, $phpbb_path_helper, $phpbb_extension_manager, $template;
 		$phpbb_container->reset();
 		unset($phpbb_container, $cache, $phpbb_dispatcher, $request, $user, $auth, $db, $config, $phpbb_log, $symfony_request, $phpbb_filesystem, $phpbb_path_helper, $phpbb_extension_manager, $template);
+	}
+
+	static protected function get_db()
+	{
+		global $phpbb_root_path, $phpEx;
+		// so we don't reopen an open connection
+		if (!(self::$db instanceof \phpbb\db\driver\driver_interface))
+		{
+			$dbms = self::$config['dbms'];
+			/** @var \phpbb\db\driver\driver_interface $db */
+			$db = new $dbms();
+			$db->sql_connect(self::$config['dbhost'], self::$config['dbuser'], self::$config['dbpasswd'], self::$config['dbname'], self::$config['dbport']);
+			self::$db = $db;
+		}
+		return self::$db;
 	}
 }
