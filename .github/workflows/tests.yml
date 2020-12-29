@@ -5,6 +5,7 @@ on:
         branches:
             - 3.3.x
             - master
+            - feature/doctrine_installer
     pull_request:
         branches:
             - 3.3.x
