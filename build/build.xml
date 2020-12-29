@@ -373,6 +373,26 @@
 		<delete file="${dir}/vendor/bantu/ini-get-wrapper/phpunit.xml.dist" />
 		<delete file="${dir}/vendor/bantu/ini-get-wrapper/README.md" />
 
+		<delete file="${dir}/vendor/doctrine/cache/README.md" />
+		<delete file="${dir}/vendor/doctrine/cache/UPGRADE.md" />
+
+		<delete file="${dir}/vendor/doctrine/dbal/.doctrine-project.json" />
+		<delete file="${dir}/vendor/doctrine/dbal/README.md" />
+		<delete file="${dir}/vendor/doctrine/dbal/SECURITY.md" />
+		<delete file="${dir}/vendor/doctrine/dbal/UPGRADE.md" />
+
+		<delete file="${dir}/vendor/doctrine/event-manager/.doctrine-project.json" />
+		<delete file="${dir}/vendor/doctrine/event-manager/README.md" />
+
+		<delete dir="${dir}/vendor/doctrine/instantiator/.github" />
+		<delete dir="${dir}/vendor/doctrine/instantiator/docs" />
+		<delete file="${dir}/vendor/doctrine/instantiator/.doctrine-project.json" />
+		<delete file="${dir}/vendor/doctrine/instantiator/CONTRIBUTING.md" />
+		<delete file="${dir}/vendor/doctrine/instantiator/phpbench.json" />
+		<delete file="${dir}/vendor/doctrine/instantiator/phpcs.xml.dist" />
+		<delete file="${dir}/vendor/doctrine/instantiator/phpstan.neon.dist" />
+		<delete file="${dir}/vendor/doctrine/instantiator/README.md" />
+
 		<delete dir="${dir}/vendor/google/recaptcha/examples" />
 		<delete dir="${dir}/vendor/google/recaptcha/tests" />
 		<delete file="${dir}/vendor/google/recaptcha/.gitignore" />
