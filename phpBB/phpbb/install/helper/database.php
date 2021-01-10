@@ -35,8 +35,6 @@ class database
 	 * @var array
 	 */
 	protected $supported_dbms = array(
-		// Note: php 5.5 alpha 2 deprecated mysql.
-		// Keep mysqli before mysql in this list.
 		'mysqli'	=> array(
 			'LABEL'			=> 'MySQL with MySQLi Extension',
 			'SCHEMA'		=> 'mysql_41',
@@ -50,6 +48,7 @@ class database
 			'LABEL'			=> 'MS SQL Server [ ODBC ]',
 			'SCHEMA'		=> 'mssql',
 			'MODULE'		=> 'odbc',
+			'DOCTRINE'		=> ['sqlsrv', 'pdo_sqlsrv'],
 			'DELIM'			=> ';',
 			'DRIVER'		=> 'phpbb\db\driver\mssql_odbc',
 			'AVAILABLE'		=> true,
@@ -77,6 +76,7 @@ class database
 			'LABEL'			=> 'PostgreSQL 8.3+',
 			'SCHEMA'		=> 'postgres',
 			'MODULE'		=> 'pgsql',
+			'DOCTRINE'		=> ['pdo_pgsql'],
 			'DELIM'			=> ';',
 			'DRIVER'		=> 'phpbb\db\driver\postgres',
 			'AVAILABLE'		=> true,
@@ -86,6 +86,7 @@ class database
 			'LABEL'			=> 'SQLite3',
 			'SCHEMA'		=> 'sqlite',
 			'MODULE'		=> 'sqlite3',
+			'DOCTRINE'		=> ['pdo_sqlite'],
 			'DELIM'			=> ';',
 			'DRIVER'		=> 'phpbb\db\driver\sqlite3',
 			'AVAILABLE'		=> true,
@@ -164,6 +165,33 @@ class database
 				}
 
 				continue;
+			}
+
+			if (array_key_exists('DOCTRINE', $db_array))
+			{
+				$available = false;
+				foreach ($db_array['DOCTRINE'] as $dll)
+				{
+					if (@extension_loaded($dll))
+					{
+						$available = true;
+						break;
+					}
+				}
+
+				if (!$available)
+				{
+					if ($return_unavailable)
+					{
+						$available_dbms[$db_name]['AVAILABLE'] = false;
+					}
+					else
+					{
+						unset($available_dbms[$db_name]);
+					}
+
+					continue;
+				}
 			}
 
 			$any_dbms_available = true;
