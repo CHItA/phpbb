@@ -13,6 +13,7 @@
 
 namespace phpbb\convert;
 
+use phpbb\config_php_file;
 use phpbb\install\controller\helper;
 use phpbb\template\template;
 
@@ -65,13 +66,13 @@ class convertor
 		global $convert, $convert_row, $message_parser, $skip_rows, $language;
 		global $request, $phpbb_dispatcher, $phpbb_container;
 
-		$phpbb_config_php_file = new \phpbb\config_php_file($phpbb_root_path, $phpEx);
+		$phpbb_config_php_file = new config_php_file($phpbb_root_path, $phpEx);
 		extract($phpbb_config_php_file->get_all());
 
 		require_once($phpbb_root_path . 'includes/constants.' . $phpEx);
 		require_once($phpbb_root_path . 'includes/functions_convert.' . $phpEx);
 
-		$dbms = $phpbb_config_php_file->convert_30_dbms_to_31($dbms);
+		$dbms = config_php_file::convert_30_dbms_to_31($dbms);
 
 		/** @var \phpbb\db\driver\driver_interface $db */
 		$db = new $dbms();

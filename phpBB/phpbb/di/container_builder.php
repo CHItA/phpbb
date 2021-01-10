@@ -13,6 +13,7 @@
 
 namespace phpbb\di;
 
+use phpbb\config_php_file;
 use Symfony\Bridge\ProxyManager\LazyProxy\PhpDumper\ProxyDumper;
 use Symfony\Component\Config\ConfigCache;
 use Symfony\Component\Config\FileLocator;
@@ -99,7 +100,7 @@ class container_builder
 	protected $custom_parameters = [];
 
 	/**
-	 * @var \phpbb\config_php_file
+	 * @var config_php_file
 	 */
 	protected $config_php_file;
 
@@ -394,10 +395,10 @@ class container_builder
 	/**
 	 * Set custom parameters to inject into the container.
 	 *
-	 * @param \phpbb\config_php_file $config_php_file
+	 * @param config_php_file $config_php_file
 	 * @return $this
 	 */
-	public function with_config(\phpbb\config_php_file $config_php_file)
+	public function with_config(config_php_file $config_php_file)
 	{
 		$this->config_php_file = $config_php_file;
 
@@ -572,7 +573,7 @@ class container_builder
 		{
 			if ($this->dbal_connection === null)
 			{
-				$dbal_driver_class = $this->config_php_file->convert_30_dbms_to_31($this->config_php_file->get('dbms'));
+				$dbal_driver_class = config_php_file::convert_30_dbms_to_31($this->config_php_file->get('dbms'));
 				/** @var \phpbb\db\driver\driver_interface $dbal_connection */
 				$this->dbal_connection = new $dbal_driver_class();
 				$this->dbal_connection->sql_connect(

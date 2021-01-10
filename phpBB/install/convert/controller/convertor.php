@@ -14,6 +14,7 @@
 namespace phpbb\convert\controller;
 
 use phpbb\cache\driver\driver_interface;
+use phpbb\config_php_file;
 use phpbb\exception\http_exception;
 use phpbb\install\controller\helper;
 use phpbb\install\helper\container_factory;
@@ -52,7 +53,7 @@ class convertor
 	protected $config;
 
 	/**
-	 * @var \phpbb\config_php_file
+	 * @var config_php_file
 	 */
 	protected $config_php_file;
 
@@ -167,7 +168,7 @@ class convertor
 
 		$this->cache	= $container->get('cache.driver');
 		$this->config	= $container->get('config');
-		$this->config_php_file	= new \phpbb\config_php_file($this->phpbb_root_path, $this->php_ext);
+		$this->config_php_file	= new config_php_file($this->phpbb_root_path, $this->php_ext);
 		$this->db		= $container->get('dbal.conn.driver');
 
 		$this->config_table			= $container->get_parameter('tables.config');
@@ -493,7 +494,7 @@ class convertor
 			$error[] = $this->language->lang('INST_ERR_DB_CONNECT');
 		}
 
-		$src_dbms = $this->config_php_file->convert_30_dbms_to_31($src_dbms);
+		$src_dbms = config_php_file::convert_30_dbms_to_31($src_dbms);
 
 		// Check table prefix
 		if (empty($error))
