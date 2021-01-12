@@ -105,44 +105,45 @@ class update_user_and_post_data extends database_task
 
 		// Update user data
 		$sql = 'UPDATE . ' . $this->user_table
-			. ' SET username = :username,'
-			. '		user_password = :password_hash,'
-			. '		user_ip = :user_ip,'
-			. '		user_lang = :user_lang,'
-			. '		user_email = :user_email,'
-			. '		user_dateformat = :dateformat,'
-			. '		username_clean = :username_clean'
+			. ' SET username = ?,'
+			. '		user_password = ?,'
+			. '		user_ip = ?,'
+			. '		user_lang = ?,'
+			. '		user_email = ?,'
+			. '		user_dateformat = ?,'
+			. '		username_clean = ?'
 			. ' WHERE username = \'Admin\'';
 
 		$values = [
-			'username' => $this->install_config->get('admin_name'),
-			'password_hash' => $this->password_manager->hash($this->install_config->get('admin_passwd')),
-			'user_ip' => $user_ip,
-			'user_lang' => $this->install_config->get('user_language', 'en'),
-			'user_email' => $this->install_config->get('board_email'),
-			'dateformat' => $this->language->lang('default_dateformat'),
-			'username_clean' => utf8_clean_string($this->install_config->get('admin_name')),
+			1 => $this->install_config->get('admin_name'),
+			2 => $this->password_manager->hash($this->install_config->get('admin_passwd')),
+			3 => $user_ip,
+			4 => $this->install_config->get('user_language', 'en'),
+			5 => $this->install_config->get('board_email'),
+			6 => $this->language->lang('default_dateformat'),
+			7 => utf8_clean_string($this->install_config->get('admin_name')),
 		];
 		$this->create_and_execute_prepared_stmt($sql, $values);
 		$this->exec_sql('UPDATE ' . $this->user_table . ' SET user_regdate = ' . $current_time);
 
 		// Update forums table
 		$sql = 'UPDATE ' . $this->forums_table
-			. ' SET forum_last_poster_name = :poster_name'
+			. ' SET forum_last_poster_name = ?'
 			. ' WHERE forum_last_poster_name = \'Admin\'';
 		$this->create_and_execute_prepared_stmt($sql, [
-			'poster_name' => $this->install_config->get('admin_name'),
+			1 => $this->install_config->get('admin_name'),
 		]);
 		$this->exec_sql('UPDATE ' . $this->forums_table . ' SET forum_last_post_time = ' . $current_time);
 
 		// Topics table
 		$sql = 'UPDATE ' . $this->topics_table
-			. '	SET topic_first_poster_name = :admin_name,'
-			. '		topic_last_poster_name = :admin_name'
+			. '	SET topic_first_poster_name = ?,'
+			. '		topic_last_poster_name = ?'
 			. ' WHERE topic_first_poster_name = \'Admin\''
 			. '	OR topic_last_poster_name = \'Admin\'';
 		$this->create_and_execute_prepared_stmt($sql, [
-			'admin_name' => $this->install_config->get('admin_name'),
+			1 => $this->install_config->get('admin_name'),
+			2 => $this->install_config->get('admin_name'),
 		]);
 		$this->exec_sql('UPDATE ' . $this->topics_table
 			. 'SET topic_time = ' . $current_time . ', topic_last_post_time = ' . $current_time
@@ -150,19 +151,19 @@ class update_user_and_post_data extends database_task
 
 		// Posts table
 		$sql = 'UPDATE ' . $this->posts_table
-			. ' SET post_time = :post_time,'
-			. '		poster_ip = :user_ip';
+			. ' SET post_time = ?,'
+			. '		poster_ip = ?';
 		$this->create_and_execute_prepared_stmt($sql, [
-			'post_time' => $current_time,
-			'user_ip' => $user_ip,
+			1 => $current_time,
+			2 => $user_ip,
 		]);
 
 		// Moderator cache
 		$sql = 'UPDATE ' . $this->moderator_cache_table
-			. ' SET username = :username'
+			. ' SET username = ?'
 			. ' WHERE username =  \'Admin\'';
 		$this->create_and_execute_prepared_stmt($sql, [
-			'username' => $this->install_config->get('admin_name'),
+			1 => $this->install_config->get('admin_name'),
 		]);
 	}
 
