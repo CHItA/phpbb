@@ -25,10 +25,10 @@ git config phpbb.hooks.commit-msg.fatal true
 
 EXIT_STATUS=0
 
-COMMIT_HASHES=$(git rev-list --no-merges "$COMMIT_RANGE")
+COMMIT_HASHES=$(git rev-list --no-merges --first-parent "$COMMIT_RANGE")
 
 # If any message have been returned instead of commit hashes list
-# send a non-zero exit status upstream .
+# send a non-zero exit status upstream.
 if ! [[ "$COMMIT_HASHES" =~ ^[0-9a-f]{5,40} ]]
 then
 	EXIT_STATUS=1
