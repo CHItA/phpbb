@@ -47,7 +47,7 @@ trait driver_convertor
 			break;
 
 			case 'mysqli':
-				$name = 'mysqli';
+				$name = 'pdo_mysql';
 			break;
 
 			case 'oracle':

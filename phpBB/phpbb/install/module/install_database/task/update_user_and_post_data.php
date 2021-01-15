@@ -146,7 +146,7 @@ class update_user_and_post_data extends database_task
 			2 => $this->install_config->get('admin_name'),
 		]);
 		$this->exec_sql('UPDATE ' . $this->topics_table
-			. 'SET topic_time = ' . $current_time . ', topic_last_post_time = ' . $current_time
+			. ' SET topic_time = ' . $current_time . ', topic_last_post_time = ' . $current_time
 		);
 
 		// Posts table
