@@ -13,39 +13,75 @@
 
 namespace phpbb\install\module\install_data\task;
 
-class add_languages extends \phpbb\install\task_base
+use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Exception;
+use phpbb\install\database_task;
+use phpbb\install\helper\config;
+use phpbb\install\helper\container_factory;
+use phpbb\install\helper\database;
+use phpbb\install\helper\iohandler\iohandler_interface;
+use phpbb\language\language_file_helper;
+
+class add_languages extends database_task
 {
 	/**
-	 * @var \phpbb\db\driver\driver_interface
+	 * @var Connection
 	 */
 	protected $db;
 
 	/**
-	 * @var \phpbb\install\helper\iohandler\iohandler_interface
+	 * @var iohandler_interface
 	 */
 	protected $iohandler;
 
 	/**
-	 * @var \phpbb\language\language_file_helper
+	 * @var language_file_helper
 	 */
 	protected $language_helper;
 
 	/**
+	 * @var string
+	 */
+	protected $lang_table;
+
+	/**
+	 * @var string
+	 */
+	protected $profile_fields_table;
+
+	/**
+	 * @var string
+	 */
+	protected $profile_lang_table;
+
+	/**
 	 * Constructor
 	 *
-	 * @param \phpbb\install\helper\iohandler\iohandler_interface	$iohandler			Installer's input-output handler
-	 * @param \phpbb\install\helper\container_factory				$container			Installer's DI container
-	 * @param \phpbb\language\language_file_helper					$language_helper	Language file helper service
+	 * @param config					$config				Installer config.
+	 * @param database					$db_helper			Database helper.
+	 * @param iohandler_interface		$iohandler			Installer's input-output handler
+	 * @param container_factory			$container			Installer's DI container
+	 * @param language_file_helper		$language_helper	Language file helper service
 	 */
-	public function __construct(\phpbb\install\helper\iohandler\iohandler_interface $iohandler,
-								\phpbb\install\helper\container_factory $container,
-								\phpbb\language\language_file_helper $language_helper)
+	public function __construct(config $config,
+								database $db_helper,
+								iohandler_interface $iohandler,
+								container_factory $container,
+								language_file_helper $language_helper)
 	{
-		$this->db				= $container->get('dbal.conn');
+		$this->db				= self::get_doctrine_connection($db_helper, $config);
 		$this->iohandler		= $iohandler;
 		$this->language_helper	= $language_helper;
 
-		parent::__construct(true);
+		$this->lang_table			= $container->get_parameter('tables.lang');
+		$this->profile_fields_table	= $container->get_parameter('tables.profile_fields');
+		$this->profile_lang_table	= $container->get_parameter('tables.profile_fields_language');
+
+		parent::__construct(
+			$this->db,
+			$this->iohandler,
+			true
+		);
 	}
 
 	/**
@@ -53,60 +89,60 @@ class add_languages extends \phpbb\install\task_base
 	 */
 	public function run()
 	{
-		$this->db->sql_return_on_error(true);
-
 		$languages = $this->language_helper->get_available_languages();
 		$installed_languages = array();
 
+		$sql = 'INSERT INTO ' . $this->lang_table
+			. ' (lang_iso, lang_dir, lang_english_name, lang_local_name, lang_author)'
+			. ' VALUES (:lang_iso, :lang_dir, :lang_english_name, :lang_local_name, :lang_author)';
+		$lang_stmt = $this->create_prepared_stmt($sql);
+
 		foreach ($languages as $lang_info)
 		{
-			$lang_pack = array(
+			$this->exec_prepared_stmt($lang_stmt, [
 				'lang_iso'			=> $lang_info['iso'],
 				'lang_dir'			=> $lang_info['iso'],
 				'lang_english_name'	=> htmlspecialchars($lang_info['name']),
 				'lang_local_name'	=> htmlspecialchars($lang_info['local_name'], ENT_COMPAT, 'UTF-8'),
 				'lang_author'		=> htmlspecialchars($lang_info['author'], ENT_COMPAT, 'UTF-8'),
-			);
+			]);
 
-			$this->db->sql_query('INSERT INTO ' . LANG_TABLE . ' ' . $this->db->sql_build_array('INSERT', $lang_pack));
-
-			$installed_languages[] = (int) $this->db->sql_nextid();
-			if ($this->db->get_sql_error_triggered())
-			{
-				$error = $this->db->sql_error($this->db->get_sql_error_sql());
-				$this->iohandler->add_error_message($error['message']);
-			}
+			$installed_languages[] = (int) $this->get_last_insert_id();
 		}
 
-		$sql = 'SELECT * FROM ' . PROFILE_FIELDS_TABLE;
-		$result = $this->db->sql_query($sql);
+		try
+		{
+			$rows = $this->db->fetchAllAssociative('SELECT * FROM ' . $this->profile_fields_table);
+		}
+		catch (Exception $e)
+		{
+			$this->iohandler->add_error_message('INST_ERR_DB', $e->getMessage());
+			$rows = [];
+		}
 
-		$insert_buffer = new \phpbb\db\sql_insert_buffer($this->db, PROFILE_LANG_TABLE);
-		while ($row = $this->db->sql_fetchrow($result))
+		$sql = 'INSERT INTO ' . $this->profile_lang_table
+			. ' (field_id, lang_id, lang_name, lang_explain, lang_default_value)'
+			. " VALUES (:field_id, :lang_id, :lang_name, '', '')";
+		$stmt = $this->create_prepared_stmt($sql);
+		foreach ($rows as $row)
 		{
 			foreach ($installed_languages as $lang_id)
 			{
-				$insert_buffer->insert(array(
+				$this->exec_prepared_stmt($stmt, [
 					'field_id'				=> $row['field_id'],
 					'lang_id'				=> $lang_id,
 
 					// Remove phpbb_ from field name
 					'lang_name'				=> strtoupper(substr($row['field_name'], 6)),
-					'lang_explain'			=> '',
-					'lang_default_value'	=> '',
-				));
+				]);
 			}
 		}
-
-		$this->db->sql_freeresult($result);
-
-		$insert_buffer->flush();
 	}
 
 	/**
 	 * {@inheritdoc}
 	 */
-	static public function get_step_count()
+	static public function get_step_count() : int
 	{
 		return 1;
 	}
@@ -114,7 +150,7 @@ class add_languages extends \phpbb\install\task_base
 	/**
 	 * {@inheritdoc}
 	 */
-	public function get_task_lang_name()
+	public function get_task_lang_name() : string
 	{
 		return 'TASK_ADD_LANGUAGES';
 	}

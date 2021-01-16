@@ -294,6 +294,7 @@ $lang = array_merge($lang, array(
 
 	// Install database
 	'TASK_ADD_CONFIG_SETTINGS'			=> 'Adding configuration settings',
+	'TASK_UPDATE_POSTS'					=> 'Adding default forums, topics and posts',
 	'TASK_ADD_DEFAULT_DATA'				=> 'Adding default settings to the database',
 	'TASK_CREATE_DATABASE_SCHEMA_FILE'	=> 'Creating database schema file',
 	'TASK_SETUP_DATABASE'				=> 'Setting up database',

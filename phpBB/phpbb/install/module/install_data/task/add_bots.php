@@ -13,9 +13,16 @@
 
 namespace phpbb\install\module\install_data\task;
 
+use Doctrine\DBAL\Exception;
+use phpbb\install\database_task;
 use phpbb\install\exception\resource_limit_reached_exception;
+use phpbb\install\helper\config;
+use phpbb\install\helper\container_factory;
+use phpbb\install\helper\database;
+use phpbb\install\helper\iohandler\iohandler_interface;
+use phpbb\language\language;
 
-class add_bots extends \phpbb\install\task_base
+class add_bots extends database_task
 {
 	/**
 	 * A list of the web-crawlers/bots we recognise by default
@@ -106,22 +113,17 @@ class add_bots extends \phpbb\install\task_base
 	);
 
 	/**
-	 * @var \phpbb\db\driver\driver_interface
-	 */
-	protected $db;
-
-	/**
-	 * @var \phpbb\install\helper\config
+	 * @var config
 	 */
 	protected $install_config;
 
 	/**
-	 * @var \phpbb\install\helper\iohandler\iohandler_interface
+	 * @var iohandler_interface
 	 */
 	protected $io_handler;
 
 	/**
-	 * @var \phpbb\language\language
+	 * @var language
 	 */
 	protected $language;
 
@@ -136,30 +138,48 @@ class add_bots extends \phpbb\install\task_base
 	protected $php_ext;
 
 	/**
+	 * @var string
+	 */
+	protected $groups_table;
+
+	/**
+	 * @var string
+	 */
+	protected $bots_table;
+
+	/**
 	 * Constructor
 	 *
-	 * @param \phpbb\install\helper\config							$install_config		Installer's config
-	 * @param \phpbb\install\helper\iohandler\iohandler_interface	$iohandler			Input-output handler for the installer
-	 * @param \phpbb\install\helper\container_factory				$container			Installer's DI container
-	 * @param \phpbb\language\language								$language			Language provider
-	 * @param string												$phpbb_root_path	Relative path to phpBB root
-	 * @param string												$php_ext			PHP extension
+	 * @param config				$install_config		Installer's config
+	 * @param database				$db_helper			Database helper.
+	 * @param iohandler_interface	$iohandler			Input-output handler for the installer
+	 * @param container_factory		$container			Installer's DI container
+	 * @param language				$language			Language provider
+	 * @param string				$phpbb_root_path	Relative path to phpBB root
+	 * @param string				$php_ext			PHP extension
 	 */
-	public function __construct(\phpbb\install\helper\config $install_config,
-								\phpbb\install\helper\iohandler\iohandler_interface $iohandler,
-								\phpbb\install\helper\container_factory $container,
-								\phpbb\language\language $language,
-								$phpbb_root_path,
-								$php_ext)
+	public function __construct(config $install_config,
+								database $db_helper,
+								iohandler_interface $iohandler,
+								container_factory $container,
+								language $language,
+								string $phpbb_root_path,
+								string $php_ext)
 	{
-		parent::__construct(true);
-
-		$this->db				= $container->get('dbal.conn');
 		$this->install_config	= $install_config;
 		$this->io_handler		= $iohandler;
 		$this->language			= $language;
 		$this->phpbb_root_path	= $phpbb_root_path;
 		$this->php_ext			= $php_ext;
+
+		$this->bots_table	= $container->get_parameter('tables.bots');
+		$this->groups_table	= $container->get_parameter('tables.groups');
+
+		parent::__construct(
+			self::get_doctrine_connection($db_helper, $install_config),
+			$this->io_handler,
+			true
+		);
 	}
 
 	/**
@@ -167,14 +187,24 @@ class add_bots extends \phpbb\install\task_base
 	 */
 	public function run()
 	{
-		$this->db->sql_return_on_error(true);
+		$group_id = $this->install_config->get('bots_group_id');
+		if ($group_id === false)
+		{
+			$sql = 'SELECT group_id FROM ' . $this->groups_table . " WHERE group_name = 'BOTS'";
+			$result = $this->query($sql);
 
-		$sql = 'SELECT group_id
-			FROM ' . GROUPS_TABLE . "
-			WHERE group_name = 'BOTS'";
-		$result = $this->db->sql_query($sql);
-		$group_id = (int) $this->db->sql_fetchfield('group_id');
-		$this->db->sql_freeresult($result);
+			try
+			{
+				$group_id = (int) $result->fetchOne();
+				$result->free();
+			}
+			catch (Exception $e)
+			{
+				$group_id = 0;
+			}
+
+			$this->install_config->set('bots_group_id', $group_id);
+		}
 
 		if (!$group_id)
 		{
@@ -184,6 +214,11 @@ class add_bots extends \phpbb\install\task_base
 
 		$i = $this->install_config->get('add_bot_index', 0);
 		$bot_list = array_slice($this->bot_list, $i);
+
+		$sql = 'INSERT INTO ' . $this->bots_table . ' '
+			. '(bot_active, bot_name, user_id, bot_agent, bot_ip) VALUES '
+			. '(:bot_active, :bot_name, :user_id, :bot_agent, :bot_ip)';
+		$stmt = $this->create_prepared_stmt($sql);
 
 		foreach ($bot_list as $bot_name => $bot_ary)
 		{
@@ -219,15 +254,13 @@ class add_bots extends \phpbb\install\task_base
 				continue;
 			}
 
-			$sql = 'INSERT INTO ' . BOTS_TABLE . ' ' . $this->db->sql_build_array('INSERT', array(
+			$this->exec_prepared_stmt($stmt, [
 				'bot_active'	=> 1,
 				'bot_name'		=> (string) $bot_name,
 				'user_id'		=> (int) $user_id,
 				'bot_agent'		=> (string) $bot_ary[0],
 				'bot_ip'		=> (string) $bot_ary[1],
-			));
-
-			$this->db->sql_query($sql);
+			]);
 
 			$i++;
 
@@ -249,7 +282,7 @@ class add_bots extends \phpbb\install\task_base
 	/**
 	 * {@inheritdoc}
 	 */
-	static public function get_step_count()
+	static public function get_step_count() : int
 	{
 		return 1;
 	}
@@ -257,7 +290,7 @@ class add_bots extends \phpbb\install\task_base
 	/**
 	 * {@inheritdoc}
 	 */
-	public function get_task_lang_name()
+	public function get_task_lang_name() : string
 	{
 		return 'TASK_ADD_BOTS';
 	}

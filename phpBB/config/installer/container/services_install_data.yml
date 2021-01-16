@@ -2,6 +2,8 @@ services:
     installer.install_data.add_languages:
         class: phpbb\install\module\install_data\task\add_languages
         arguments:
+            - '@installer.helper.config'
+            - '@installer.helper.database'
             - '@installer.helper.iohandler'
             - '@installer.helper.container_factory'
             - '@language.helper.language_file'
@@ -12,6 +14,7 @@ services:
         class: phpbb\install\module\install_data\task\add_bots
         arguments:
             - '@installer.helper.config'
+            - '@installer.helper.database'
             - '@installer.helper.iohandler'
             - '@installer.helper.container_factory'
             - '@language'
@@ -32,8 +35,10 @@ services:
     installer.install_data.create_search_index:
         class: phpbb\install\module\install_data\task\create_search_index
         arguments:
-            - '@config'
+            - '@installer.helper.config'
+            - '@installer.helper.database'
             - '@installer.helper.container_factory'
+            - '@installer.helper.iohandler'
             - '%core.root_path%'
             - '%core.php_ext%'
         tags:
