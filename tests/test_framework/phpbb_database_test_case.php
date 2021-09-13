@@ -15,7 +15,7 @@ use PHPUnit\DbUnit\TestCase;
 
 abstract class phpbb_database_test_case extends TestCase
 {
-	static private $already_connected;
+	static private $connection = null;
 
 	private $db_connections;
 
@@ -265,24 +265,20 @@ abstract class phpbb_database_test_case extends TestCase
 
 	public function getConnection()
 	{
+		if (self::$connection !== null)
+		{
+			return self::$connection;
+		}
+
 		$config = $this->get_database_config();
 
 		$manager = $this->create_connection_manager($config);
 
-		if (!self::$already_connected)
-		{
-			$manager->recreate_db();
-		}
+		$manager->recreate_db();
+		$manager->load_schema($this->new_dbal());
 
-		$manager->connect();
-
-		if (!self::$already_connected)
-		{
-			$manager->load_schema($this->new_dbal());
-			self::$already_connected = true;
-		}
-
-		return $this->createDefaultDBConnection($manager->get_pdo(), 'testdb');
+		self::$connection = $this->createDefaultDBConnection($manager->get_pdo(), 'testdb');
+		return self::$connection;
 	}
 
 	public function new_dbal()

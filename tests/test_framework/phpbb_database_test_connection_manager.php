@@ -32,6 +32,7 @@ class phpbb_database_test_connection_manager
 	{
 		$this->config = $config;
 		$this->dbms = $this->get_dbms_data($this->config['dbms']);
+		$this->pdo = null;
 	}
 
 	/**
@@ -51,12 +52,26 @@ class phpbb_database_test_connection_manager
 	*/
 	public function connect($use_db = true)
 	{
+		if ($this->pdo !== null)
+		{
+			return;
+		}
+
 		$dsn = $this->dbms['PDO'] . ':';
 
 		switch ($this->dbms['PDO'])
 		{
 			case 'sqlite':	// SQLite3 driver
 				$dsn .= $this->config['dbhost'];
+			break;
+
+			case 'oci':
+				$port = $this->config['dbport'] ? $this->config['dbport'] : 1521;
+				$dsn = '(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)'
+					. '(HOST=' . $this->config['dbhost'] . ')'
+					. "(PORT=$port))"
+					. '(CONNECT_DATA=(SID=' . $this->config['dbname'] . ')))';
+				$dsn = 'oci:dbname=' . $dsn . ';charset=UTF8';
 			break;
 
 			case 'sqlsrv':
@@ -202,10 +217,16 @@ class phpbb_database_test_connection_manager
 			break;
 
 			case 'phpbb\db\driver\oracle':
+				global $table_prefix;
 				$this->connect();
 				// Drop all of the tables
 				foreach ($this->get_tables() as $table)
 				{
+					if (strpos(strtolower($table_prefix), strtolower($table)) !== 0)
+					{
+						continue;
+					}
+
 					$this->pdo->exec('DROP TABLE ' . $table . ' CASCADE CONSTRAINTS');
 				}
 				$this->purge_extras();
