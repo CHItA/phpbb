@@ -454,7 +454,7 @@ jobs:
         name: PHP ${{ matrix.php }} - ${{ matrix.db }}
 
         services:
-            postgres:
+            oracle:
                 image: "wnameless/oracle-xe-11g-r2"
                 ports:
                     - 1521:1521

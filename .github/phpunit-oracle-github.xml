@@ -28,7 +28,7 @@
 
 	<php>
 		<server name="PHPBB_TEST_DBMS" value="phpbb\db\driver\oracle"/>
-		<server name="PHPBB_TEST_DBHOST" value="localhost" />
+		<server name="PHPBB_TEST_DBHOST" value="0.0.0.0" />
 		<server name="PHPBB_TEST_DBPORT" value="1521" />
 		<server name="PHPBB_TEST_DBNAME" value="XE" />
 		<server name="PHPBB_TEST_DBUSER" value="system" />
