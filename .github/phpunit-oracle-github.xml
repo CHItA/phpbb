@@ -31,7 +31,7 @@
 		<server name="PHPBB_TEST_DBHOST" value="localhost" />
 		<server name="PHPBB_TEST_DBPORT" value="1521" />
 		<server name="PHPBB_TEST_DBNAME" value="XE" />
-		<server name="PHPBB_TEST_DBUSER" value="oracle" />
+		<server name="PHPBB_TEST_DBUSER" value="system" />
 		<server name="PHPBB_TEST_DBPASSWD" value="oracle" />
 		<server name="PHPBB_TEST_REDIS_HOST" value="localhost" />
 		<server name="PHPBB_TEST_MEMCACHED_HOST" value="localhost" />
