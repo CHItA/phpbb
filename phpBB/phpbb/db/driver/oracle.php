@@ -406,6 +406,10 @@ class oracle extends \phpbb\db\driver\driver
 				}
 
 				$this->query_result = @oci_parse($this->db_connect_id, $query);
+				if ($this->query_result === false)
+				{
+					$this->sql_error($query);
+				}
 
 				foreach ($array as $key => $value)
 				{

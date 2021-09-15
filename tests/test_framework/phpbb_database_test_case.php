@@ -16,6 +16,7 @@ use PHPUnit\DbUnit\TestCase;
 abstract class phpbb_database_test_case extends TestCase
 {
 	static private $connection = null;
+	static private $connection_manager = null;
 
 	private $db_connections;
 
@@ -311,7 +312,13 @@ abstract class phpbb_database_test_case extends TestCase
 
 	protected function create_connection_manager($config)
 	{
-		return new phpbb_database_test_connection_manager($config);
+		if (self::$connection_manager !== null)
+		{
+			return self::$connection_manager;
+		}
+
+		self::$connection_manager = new phpbb_database_test_connection_manager($config);
+		return self::$connection_manager;
 	}
 
 	/** array_diff() does not corretly compare multidimensionsl arrays
