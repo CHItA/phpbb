@@ -973,6 +973,7 @@ abstract class driver implements driver_interface
 		$this->sql_error_sql = $sql;
 
 		$this->sql_error_returned = $this->_sql_error();
+		echo "\n" . $this->sql_error_returned['message'] . " $sql\n";
 
 		if (!$this->return_on_error)
 		{
