@@ -13,8 +13,7 @@
 
 namespace phpbb\db;
 
-use Doctrine\DBAL\Driver\ResultStatement;
-use Doctrine\DBAL\FetchMode;
+use Doctrine\DBAL\Result;
 use phpbb\db\driver\driver_interface;
 
 /**
@@ -38,7 +37,7 @@ final class result_iterator implements result_iterator_interface
 	private $id;
 
 	/**
-	 * @var ResultStatement|array
+	 * @var Result|array
 	 */
 	private $data;
 
@@ -70,11 +69,11 @@ final class result_iterator implements result_iterator_interface
 	/**
 	 * Constructor.
 	 *
-	 * @param ResultStatement	$statement	A Doctrine DBAL result statement.
+	 * @param Result				$statement	A Doctrine DBAL result.
 	 * @param string			$sql		The SQL query.
 	 * @param driver_interface	$driver		The database driver.
 	 */
-	public function __construct(ResultStatement $statement, string $sql, driver_interface $driver)
+	public function __construct(Result $statement, string $sql, driver_interface $driver)
 	{
 		$this->data = $statement;
 		$this->sql = $sql;
@@ -87,9 +86,9 @@ final class result_iterator implements result_iterator_interface
 	 */
 	public function __destruct()
 	{
-		if ($this->data instanceof ResultStatement)
+		if ($this->data instanceof Result)
 		{
-			$this->data->closeCursor();
+			$this->data->free();
 		}
 	}
 
@@ -167,13 +166,13 @@ final class result_iterator implements result_iterator_interface
 	 */
 	public function fetch_all()
 	{
-		if (!($this->data instanceof ResultStatement))
+		if (!($this->data instanceof Result))
 		{
 			return $this->data;
 		}
 
-		$rows = $this->data->fetchAll(FetchMode::ASSOCIATIVE);
-		$this->data->closeCursor();
+		$rows = $this->data->fetchAllAssociative();
+		$this->data->free();
 		$this->data = $rows;
 
 		return $this->data;
@@ -184,9 +183,9 @@ final class result_iterator implements result_iterator_interface
 	 */
 	public function invalidate()
 	{
-		if ($this->data instanceof ResultStatement)
+		if ($this->data instanceof Result)
 		{
-			$this->data->closeCursor();
+			$this->data->free();
 		}
 
 		$this->data = [];
@@ -228,7 +227,7 @@ final class result_iterator implements result_iterator_interface
 	 */
 	private function iterate_backward()
 	{
-		if ($this->data instanceof ResultStatement)
+		if ($this->data instanceof Result)
 		{
 			$this->reexectue_query();
 			$this->fetch_all();
@@ -253,7 +252,7 @@ final class result_iterator implements result_iterator_interface
 		$offset = $this->target_position - $this->position;
 		for ($i = 0; $i < $offset; ++$i)
 		{
-			$this->current = $this->data->fetch(FetchMode::ASSOCIATIVE);
+			$this->current = $this->data->fetchAssociative();
 			if ($this->current === false)
 			{
 				$this->current = null;
@@ -277,6 +276,7 @@ final class result_iterator implements result_iterator_interface
 	 */
 	private function reexectue_query()
 	{
-		$this->data = $this->driver->sql_query($this->sql);
+		$result = $this->driver->sql_query($this->sql);
+		$this->data = ($result instanceof self) ? $result->fetch_all() : [];
 	}
 }

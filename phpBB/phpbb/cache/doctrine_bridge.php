@@ -13,17 +13,21 @@
 
 namespace phpbb\cache;
 
-use Doctrine\Common\Cache\Cache;
+use Psr\Cache\CacheItemInterface;
+use Psr\Cache\CacheItemPoolInterface;
 
 /**
  * This class is a bridge between Doctrine's cache implementation and phpBB's cache drivers.
  */
-class doctrine_bridge implements Cache
+class doctrine_bridge implements CacheItemPoolInterface
 {
 	/**
 	 * @var \phpbb\cache\driver\driver_interface
 	 */
 	private $cache;
+
+	/** @var array<string, doctrine_cache_item> */
+	private $deferred = [];
 
 	/**
 	 * Constructor.
@@ -35,29 +39,82 @@ class doctrine_bridge implements Cache
 		$this->cache = $cache;
 	}
 
-	public function fetch($sql)
+	public function getItem(string $key): CacheItemInterface
 	{
-		return $this->cache->sql_load($sql);
+		$value = $this->cache->sql_load($key);
+		return new doctrine_cache_item($key, $value, $value !== false);
 	}
 
-	public function contains($sql)
+	public function getItems(array $keys = []): iterable
 	{
-		return $this->cache->_exists($this->cache->get_cache_id_from_sql_query($sql));
+		foreach ($keys as $key)
+		{
+			yield $key => $this->getItem($key);
+		}
 	}
 
-	public function save($sql, $data, $ttl = 0)
+	public function hasItem(string $key): bool
 	{
-		return $this->cache->sql_save($sql, $data, $ttl);
+		return $this->cache->_exists($this->cache->get_cache_id_from_sql_query($key));
 	}
 
-	public function delete($sql)
+	public function clear(): bool
 	{
-		$this->cache->destroy($this->cache->get_cache_id_from_sql_query($sql));
+		$this->cache->purge();
 		return true;
 	}
 
-	public function getStats()
+	public function deleteItem(string $key): bool
 	{
-		return null;
+		$this->cache->destroy($this->cache->get_cache_id_from_sql_query($key));
+		return true;
+	}
+
+	public function deleteItems(array $keys): bool
+	{
+		foreach ($keys as $key)
+		{
+			if (!$this->deleteItem($key))
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	public function save(CacheItemInterface $item): bool
+	{
+		if (!$item instanceof doctrine_cache_item)
+		{
+			return false;
+		}
+
+		return $this->cache->sql_save($item->getKey(), $item->get(), $item->get_ttl());
+	}
+
+	public function saveDeferred(CacheItemInterface $item): bool
+	{
+		if (!$item instanceof doctrine_cache_item)
+		{
+			return false;
+		}
+
+		$this->deferred[$item->getKey()] = $item;
+		return true;
+	}
+
+	public function commit(): bool
+	{
+		foreach ($this->deferred as $item)
+		{
+			if (!$this->save($item))
+			{
+				return false;
+			}
+		}
+
+		$this->deferred = [];
+		return true;
 	}
 }

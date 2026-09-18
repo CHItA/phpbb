@@ -15,13 +15,12 @@ namespace phpbb\db\driver;
 
 use Doctrine\DBAL\Cache\QueryCacheProfile;
 use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\ConnectionException;
-use Doctrine\DBAL\DBALException;
+use Doctrine\DBAL\Exception;
 use Doctrine\DBAL\Platforms\AbstractPlatform;
 use phpbb\cache\doctrine_bridge;
-use phpbb\db\connection_factory;
 use phpbb\db\result_iterator;
 use phpbb\db\result_iterator_interface;
+use Psr\Cache\CacheItemPoolInterface;
 
 /**
  * Wrapper class for Doctrine DBAL.
@@ -55,20 +54,32 @@ class doctrine extends driver implements driver_interface
 	 */
 	private $enable_caching;
 
+	/** @var array{message: string, code: int|string} */
+	private $last_error = [
+		'message' => '',
+		'code' => 0,
+	];
+
 	/**
 	 * Database driver constructor.
 	 *
 	 * @param Connection|null $connection Doctrine connection object.
+	 * @param CacheItemPoolInterface|null $cache Doctrine result cache.
 	 */
-	public function __construct(?Connection $connection = null)
+	public function __construct(?Connection $connection = null, ?CacheItemPoolInterface $cache = null)
 	{
 		parent::__construct();
 
 		$this->connection = $connection;
-		$this->enable_caching = !is_null($connection);
+		$this->enable_caching = $cache !== null;
+		$this->db_connect_id = $connection ?: false;
+
+		if ($connection !== null && $cache !== null)
+		{
+			$connection->getConfiguration()->setResultCache($cache);
+		}
 
 		$this->detect_platform();
-		$this->db_connect_id = false;
 	}
 
 	/**
@@ -80,7 +91,7 @@ class doctrine extends driver implements driver_interface
 	{
 		$cache_driver = new doctrine_bridge($cache);
 		$config = $this->connection->getConfiguration();
-		$config->setResultCacheImpl($cache_driver);
+		$config->setResultCache($cache_driver);
 		$this->enable_caching = true;
 	}
 
@@ -159,6 +170,21 @@ class doctrine extends driver implements driver_interface
 	/**
 	 * {@inheritDoc}
 	 */
+	protected function _sql_close(): bool
+	{
+		if ($this->connection === null)
+		{
+			return false;
+		}
+
+		$this->connection->close();
+		$this->connection = null;
+		return true;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
 	public function sql_query_limit($query, $total, $offset = 0, $cache_ttl = 0)
 	{
 		if (empty($query))
@@ -177,13 +203,21 @@ class doctrine extends driver implements driver_interface
 				$total = ($total === 0) ? null : $total;
 				$query = $this->platform->modifyLimitQuery($query, $total, $offset);
 			}
-			catch (DBALException $e)
+			catch (Exception $e)
 			{
 				return false;
 			}
 		}
 
 		return $this->sql_query($query, $cache_ttl);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	protected function _sql_query_limit(string $query, int $total, int $offset = 0, int $cache_ttl = 0)
+	{
+		return $this->sql_query_limit($query, $total, $offset, $cache_ttl);
 	}
 
 	/**
@@ -216,7 +250,7 @@ class doctrine extends driver implements driver_interface
 	/**
 	 * {@inheritDoc}
 	 */
-	public function sql_fetchfield($field, $rownum = false, $query_id = false)
+	public function sql_fetchfield($field, $rownum = false, &$query_id = false)
 	{
 		if ($query_id === false)
 		{
@@ -314,7 +348,7 @@ class doctrine extends driver implements driver_interface
 				{
 					$this->connection->commit();
 				}
-				catch (ConnectionException $e)
+			catch (Exception $e)
 				{
 					$this->sql_error();
 					return false;
@@ -326,12 +360,46 @@ class doctrine extends driver implements driver_interface
 				{
 					$this->connection->rollBack();
 				}
-				catch (ConnectionException $e)
+			catch (Exception $e)
 				{
 					$this->sql_error();
 					return false;
 				}
 				break;
+		}
+
+		return true;
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	protected function _sql_transaction(string $status = 'begin'): bool
+	{
+		try
+		{
+			switch ($status)
+			{
+				case 'begin':
+					$this->connection->beginTransaction();
+				break;
+
+				case 'commit':
+					$this->connection->commit();
+				break;
+
+				case 'rollback':
+					$this->connection->rollBack();
+				break;
+			}
+		}
+		catch (Exception $e)
+		{
+			$this->last_error = [
+				'message' => $e->getMessage(),
+				'code' => $e->getCode(),
+			];
+			return false;
 		}
 
 		return true;
@@ -426,13 +494,13 @@ class doctrine extends driver implements driver_interface
 
 		try
 		{
-			$this->connection = connection_factory::get_connection_from_params(
+			$this->connection = \phpbb\db\doctrine\connection_factory::get_connection_from_params(
 				get_class($this),
 				$sqlserver,
-				($port !== false) ? $port : '',
 				$sqluser,
 				$sqlpassword,
-				$database
+				$database,
+				($port !== false) ? (string) $port : null
 			);
 
 			if (!$this->connection->isConnected())
@@ -446,6 +514,7 @@ class doctrine extends driver implements driver_interface
 		}
 
 		$this->detect_platform();
+		$this->db_connect_id = $this->connection;
 
 		return $this->connection->isConnected();
 	}
@@ -524,6 +593,14 @@ class doctrine extends driver implements driver_interface
 	 */
 	public function sql_nextid()
 	{
+		return $this->sql_last_inserted_id();
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	public function sql_last_inserted_id()
+	{
 		$platform = $this->platform->getName();
 		switch ($platform)
 		{
@@ -556,10 +633,7 @@ class doctrine extends driver implements driver_interface
 
 		$query_id->invalidate();
 
-		if (array_key_exists($query_id->get_id(), $this->open_queries))
-		{
-			//unset($this->open_queries[$query_id->get_id()]);
-		}
+		unset($this->open_queries[$query_id->get_id()]);
 
 		return true;
 	}
@@ -572,7 +646,7 @@ class doctrine extends driver implements driver_interface
 	 *
 	 * @return	string	The db-specific query fragment
 	 */
-	public function _sql_custom_build($stage, $data)
+	protected function _sql_custom_build(string $stage, $data)
 	{
 		if ($stage === 'FROM' && $this->platform->getName() === 'mysql')
 		{
@@ -582,18 +656,13 @@ class doctrine extends driver implements driver_interface
 		return $data;
 	}
 
-	public function _sql_error()
+	protected function _sql_error(): array
 	{
-		$error = $this->connection->errorInfo();
-		return [
-			'message'	=> $error[1],
-			'code'		=> $error[2],
-		];
+		return $this->last_error;
 	}
 
-	public function _sql_report($mode, $query = '')
+	protected function _sql_report(string $mode, string $query = ''): void
 	{
-		return null;
 	}
 
 	/**
@@ -612,7 +681,7 @@ class doctrine extends driver implements driver_interface
 		{
 			$this->platform = $this->connection->getDatabasePlatform();
 		}
-		catch (DBALException $e)
+		catch (Exception $e)
 		{
 			return;
 		}
@@ -637,7 +706,7 @@ class doctrine extends driver implements driver_interface
 
 		try
 		{
-			$this->affected_rows = $this->connection->exec($sql);
+			$this->affected_rows = $this->connection->executeStatement($sql);
 
 			$table = [];
 			if (preg_match('#^INSERT[\t\n ]+INTO[\t\n ]+([a-z0-9\_\-]+)#is', $sql, $table))
@@ -647,8 +716,12 @@ class doctrine extends driver implements driver_interface
 
 			$result = $this->affected_rows;
 		}
-		catch (DBALException $e)
+		catch (Exception $e)
 		{
+			$this->last_error = [
+				'message' => $e->getMessage(),
+				'code' => $e->getCode(),
+			];
 			$this->sql_error($sql);
 			$result = false;
 		}
@@ -680,8 +753,12 @@ class doctrine extends driver implements driver_interface
 
 			$this->query_result = new result_iterator($this->connection->executeQuery($sql, [], [], $cache_config), $sql, $this);
 		}
-		catch (DBALException $e)
+		catch (Exception $e)
 		{
+			$this->last_error = [
+				'message' => $e->getMessage(),
+				'code' => $e->getCode(),
+			];
 			$this->sql_error($sql);
 			$this->query_result = false;
 		}

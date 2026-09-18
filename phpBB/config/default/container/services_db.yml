@@ -2,7 +2,8 @@ services:
     dbal.conn:
         class: phpbb\db\driver\doctrine
         arguments:
-            - '@doctrine.connection'
+            - '@dbal.conn.doctrine'
+            - '@doctrine.cache'
 
     dbal.conn.driver: '@dbal.conn'
 
